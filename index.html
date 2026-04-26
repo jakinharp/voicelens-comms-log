@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoiceLens Comms Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+/* ————————————————— DESIGN TOKENS ————————————————— */
+:root {
+  --ink: #0d0d0f;
+  --ink-2: #1a1a1e;
+  --ink-3: #2a2a30;
+  --paper: #f5f1e8;
+  --paper-2: #ebe5d4;
+  --rule: #d4cdb9;
+  --accent: #c8442f;
+  --accent-dim: #8a3522;
+  --ok: #3d6b4a;
+  --warn: #b8822b;
+  --fail: #a03030;
+  --peer: #2f5c8a;
+  --hostile: #a03030;
+  --mocker: #6b6b6b;
+  --philosopher: #7a5c8a;
+  --silent: #8a8a8a;
+  --font-display: 'Fraunces', serif;
+  --font-body: 'Inter Tight', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.55;
+  font-size: 15px;
+  min-height: 100vh;
+}
+/* ————————————————— LAYOUT ————————————————— */
+.app {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 100vh;
+}
+aside {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 32px 24px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--ink-3);
+}
+main {
+  padding: 48px 56px 96px;
+  max-width: 920px;
+}
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  aside { position: static; height: auto; }
+  main { padding: 32px 20px 64px; }
+}
+/* ————————————————— SIDEBAR ————————————————— */
+.brand {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+.brand-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--paper-2);
+  opacity: 0.5;
+  margin-bottom: 28px;
+}
+.search-wrap {
+  position: relative;
+  margin-bottom: 24px;
+}
+.search-input {
+  width: 100%;
+  padding: 10px 12px 10px 32px;
+  background: var(--ink-2);
+  border: 1px solid var(--ink-3);
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--accent); }
+.search-input::placeholder { color: var(--paper-2); opacity: 0.4; }
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.4;
+  font-size: 12px;
+}
+.filter-group {
+  margin-bottom: 20px;
+}
+.filter-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--paper-2);
+  opacity: 0.5;
+  margin-bottom: 8px;
+}
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 4px 8px;
+  background: var(--ink-2);
+  border: 1px solid var(--ink-3);
+  color: var(--paper-2);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+.chip:hover { border-color: var(--paper-2); color: var(--paper); }
+.chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.nav-section {
+  margin-top: 28px;
+}
+.nav-title {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--paper-2);
+  opacity: 0.5;
+  margin-bottom: 10px;
+}
+.nav-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav-list a {
+  display: block;
+  padding: 6px 10px;
+  color: var(--paper-2);
+  text-decoration: none;
+  font-size: 13px;
+  border-radius: 3px;
+  border-left: 2px solid transparent;
+  transition: all 0.15s;
+}
+.nav-list a:hover {
+  color: var(--paper);
+  background: var(--ink-2);
+  border-left-color: var(--accent);
+}
+.entry-nav-item {
+  font-family: var(--font-mono);
+  font-size: 10px !important;
+  padding: 8px 10px !important;
+}
+.entry-nav-item .entry-status {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.entry-status.live { background: var(--ok); }
+.entry-status.completed { background: var(--peer); }
+.entry-status.deleted { background: var(--fail); }
+.entry-status.paused { background: var(--warn); }
+/* ————————————————— MAIN CONTENT ————————————————— */
+.page-header {
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 24px;
+  margin-bottom: 40px;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  margin-bottom: 12px;
+}
+.page-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.page-meta span { display: inline-flex; align-items: center; gap: 6px; }
+.dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.loading {
+  padding: 60px 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.error {
+  padding: 40px;
+  background: #fff;
+  border: 2px solid var(--fail);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fail);
+}
+.error h3 { margin-bottom: 12px; font-family: var(--font-display); font-size: 22px; }
+.error code {
+  display: block;
+  padding: 12px;
+  background: var(--paper-2);
+  margin: 12px 0;
+  color: var(--ink);
+  word-break: break-all;
+  font-size: 11px;
+}
+/* ————————————————— SECTIONS ————————————————— */
+.section {
+  margin-bottom: 64px;
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.section-number {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+.section-desc {
+  font-size: 14px;
+  color: var(--ink-3);
+  margin-bottom: 28px;
+  max-width: 640px;
+}
+/* ————————————————— ENTRIES ————————————————— */
+.entry {
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 32px 36px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.02), 0 4px 16px rgba(13,13,15,0.04);
+  transition: opacity 0.2s;
+}
+.entry.hidden { display: none; }
+.entry.dimmed { opacity: 0.3; }
+.entry-header {
+  border-bottom: 1px dashed var(--rule);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+.entry-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  background: var(--paper-2);
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 3px;
+  margin-bottom: 10px;
+}
+.entry-status-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.entry-status-badge.live { background: var(--ok); color: white; }
+.entry-status-badge.completed { background: var(--peer); color: white; }
+.entry-status-badge.deleted { background: var(--fail); color: white; }
+.entry-status-badge.paused { background: var(--warn); color: white; }
+.entry-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 6px;
+}
+.entry-meta-item { display: flex; gap: 4px; align-items: center; }
+.entry-meta-item strong { color: var(--ink); font-weight: 700; }
+.entry h4 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 24px 0 10px;
+  letter-spacing: -0.01em;
+}
+.entry h5 {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent-dim);
+  margin: 20px 0 8px;
+}
+.entry p { margin-bottom: 10px; font-size: 14.5px; line-height: 1.6; }
+.entry ul, .entry ol { margin: 10px 0 10px 20px; font-size: 14.5px; }
+.entry li { margin-bottom: 4px; }
+.entry strong { color: var(--ink); }
+.entry blockquote {
+  border-left: 3px solid var(--rule);
+  padding: 10px 16px;
+  margin: 12px 0;
+  background: var(--paper);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  border-radius: 0 4px 4px 0;
+}
+.entry blockquote p { margin-bottom: 6px; }
+.entry blockquote p:last-child { margin-bottom: 0; }
+.entry code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--paper-2);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.entry pre {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 16px 20px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 12px 0;
+  font-size: 12px;
+}
+.entry pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+.entry hr {
+  border: none;
+  border-top: 1px dashed var(--rule);
+  margin: 20px 0;
+}
+/* ————————————————— REPLY COLOR CODING ————————————————— */
+.entry blockquote.role-hostile {
+  border-left-color: var(--hostile);
+  background: #fff5f5;
+}
+.entry blockquote.role-peer {
+  border-left-color: var(--peer);
+  background: #f3f7fc;
+}
+.entry blockquote.role-philosopher {
+  border-left-color: var(--philosopher);
+  background: #f8f4fb;
+}
+.entry blockquote.role-mocker {
+  border-left-color: var(--mocker);
+  background: #f4f4f4;
+}
+.entry blockquote.role-op {
+  border-left-color: var(--accent);
+  background: #fdf5f1;
+}
+.entry blockquote.role-silent {
+  border-left-color: var(--silent);
+  background: #f8f8f8;
+}
+.role-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 2px;
+  color: white;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.role-tag.hostile { background: var(--hostile); }
+.role-tag.peer { background: var(--peer); }
+.role-tag.philosopher { background: var(--philosopher); }
+.role-tag.mocker { background: var(--mocker); }
+.role-tag.op { background: var(--accent); }
+.role-tag.silent { background: var(--silent); }
+/* ————————————————— NON-ENTRY CONTENT ————————————————— */
+.content-block {
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 28px 36px;
+  margin-bottom: 24px;
+}
+.content-block h3 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+.content-block h4 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  margin: 20px 0 10px;
+}
+.content-block h5 {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent-dim);
+  margin: 18px 0 8px;
+}
+.content-block p { margin-bottom: 12px; font-size: 14.5px; }
+.content-block ul, .content-block ol { margin: 10px 0 12px 22px; }
+.content-block li { margin-bottom: 6px; font-size: 14.5px; line-height: 1.55; }
+.content-block blockquote {
+  border-left: 3px solid var(--rule);
+  padding: 10px 16px;
+  margin: 12px 0;
+  background: var(--paper);
+  border-radius: 0 4px 4px 0;
+}
+.content-block code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--paper-2);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.content-block pre {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 16px 20px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 12px 0;
+  font-size: 12px;
+}
+.content-block pre code { background: none; padding: 0; color: inherit; }
+.content-block strong { color: var(--ink); }
+.content-block hr { border: none; border-top: 1px dashed var(--rule); margin: 20px 0; }
+.content-block a { color: var(--accent-dim); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+/* ————————————————— UTILITY ————————————————— */
+.no-results {
+  padding: 60px 20px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.scroll-to-top {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 44px;
+  height: 44px;
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 18px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  z-index: 100;
+}
+.scroll-to-top.visible { opacity: 1; }
+.scroll-to-top:hover { background: var(--accent); }
+.load-wrapper {
+  padding: 40px;
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.load-wrapper h3 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+.load-wrapper p { margin-bottom: 16px; font-size: 14px; color: var(--ink-3); }
+.load-btn {
+  display: inline-block;
+  padding: 10px 18px;
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-right: 10px;
+}
+.load-btn:hover { background: var(--accent); }
+#file-input { display: none; }
+.file-note {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: var(--paper-2);
+  border-left: 3px solid var(--accent);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.file-note code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--paper);
+  padding: 2px 5px;
+  border-radius: 2px;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside>
+    <div class="brand">VoiceLens<br>Comms Log</div>
+    <div class="brand-sub">Internal · Jakin Harper</div>
+
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" class="search-input" id="search" placeholder="Search entries, tags, quotes…">
+    </div>
+
+    <div class="filter-group">
+      <div class="filter-label">Status</div>
+      <div class="filter-chips" id="status-filters">
+        <span class="chip active" data-filter="status" data-value="all">All</span>
+        <span class="chip" data-filter="status" data-value="live">🟢 Live</span>
+        <span class="chip" data-filter="status" data-value="completed">✅ Done</span>
+        <span class="chip" data-filter="status" data-value="deleted">🔴 Deleted</span>
+        <span class="chip" data-filter="status" data-value="paused">⚠️ Paused</span>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <div class="filter-label">Channel</div>
+      <div class="filter-chips" id="channel-filters">
+        <span class="chip active" data-filter="channel" data-value="all">All</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-title">Sections</div>
+      <ul class="nav-list" id="section-nav"></ul>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-title">Entries</div>
+      <ul class="nav-list" id="entry-nav"></ul>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div class="page-header">
+      <h1 class="page-title">Comms Log</h1>
+      <div class="page-meta">
+        <span><span class="dot"></span>Live log</span>
+        <span>Last updated: <strong id="last-updated">—</strong></span>
+        <span>Entries: <strong id="entry-count">—</strong></span>
+      </div>
+    </div>
+    <div id="content">
+      <div class="load-wrapper">
+        <h3>Load the comms log</h3>
+        <p>This viewer reads <code>VoiceLens_Comms_Log.md</code> at runtime so there's no duplication. Load it one of two ways:</p>
+        <button class="load-btn" onclick="document.getElementById('file-input').click()">Choose File</button>
+        <button class="load-btn" id="auto-load-btn" onclick="tryAutoLoad()">Auto-Load (same folder)</button>
+        <input type="file" id="file-input" accept=".md,.markdown,.txt">
+        <div class="file-note">
+          <strong>Auto-load:</strong> works when this HTML and <code>VoiceLens_Comms_Log.md</code> are in the same folder AND served over a local web server (browsers block <code>file://</code> fetches). Quick server: <code>cd /path/to/folder && python3 -m http.server 8000</code> then open <code>http://localhost:8000</code>.
+          <br><br>
+          <strong>Choose File:</strong> works from anywhere. No server needed. Pick the markdown file each session.
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<button class="scroll-to-top" id="scroll-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<script>
+/* ————————————————— PARSING ————————————————— */
+const state = {
+  markdown: null,
+  entries: [],
+  sections: [],
+  channels: new Set(),
+  filters: { status: 'all', channel: 'all', search: '' }
+};
+
+function parseMarkdown(md) {
+  state.markdown = md;
+  state.entries = [];
+  state.sections = [];
+  state.channels = new Set();
+
+  // Split into major sections (§ 1, § 2, § 3...)
+  const sectionRe = /^## § (\d+(?:\.\d+)?) — (.+)$/gm;
+  const sectionMatches = [];
+  let m;
+  while ((m = sectionRe.exec(md)) !== null) {
+    sectionMatches.push({ num: m[1], title: m[2].trim(), start: m.index });
+  }
+
+  for (let i = 0; i < sectionMatches.length; i++) {
+    const s = sectionMatches[i];
+    const end = i + 1 < sectionMatches.length ? sectionMatches[i + 1].start : md.length;
+    const body = md.slice(s.start, end).replace(/^## § .+$/m, '').trim();
+    state.sections.push({ num: s.num, title: s.title, body, isEntries: s.num === '3' });
+  }
+
+  // Parse entries from § 3
+  const entriesSection = state.sections.find(s => s.isEntries);
+  if (entriesSection) {
+    const entryRe = /^### `([^`]+)`([\s\S]*?)(?=^### `|^---\s*$|\z)/gm;
+    // Simpler: split by `### \`` pattern
+    const parts = entriesSection.body.split(/^### `/m).slice(1);
+    for (const part of parts) {
+      const idMatch = part.match(/^([^`]+)`/);
+      if (!idMatch) continue;
+      const id = idMatch[1];
+      const rest = part.slice(idMatch[0].length);
+      const entry = parseEntry(id, rest);
+      if (entry) {
+        state.entries.push(entry);
+        if (entry.channel) state.channels.add(entry.channel);
+      }
+    }
+  }
+
+  renderAll();
+}
+
+function parseEntry(id, body) {
+  const getMeta = (key) => {
+    const re = new RegExp(`^\\*\\*${key}:\\*\\*\\s*(.+)$`, 'm');
+    const m = body.match(re);
+    return m ? m[1].trim() : '';
+  };
+
+  const statusRaw = getMeta('Status');
+  let status = 'unknown';
+  if (/live|🟢/i.test(statusRaw)) status = 'live';
+  else if (/completed|✅/i.test(statusRaw)) status = 'completed';
+  else if (/deleted|🔴/i.test(statusRaw)) status = 'deleted';
+  else if (/paused|⚠️/i.test(statusRaw)) status = 'paused';
+
+  return {
+    id,
+    body: body.trim(),
+    date: getMeta('Date/Time'),
+    channel: getMeta('Channel'),
+    subChannel: getMeta('Sub-channel'),
+    assetType: getMeta('Asset Type'),
+    intent: getMeta('Intent'),
+    status,
+    statusRaw
+  };
+}
+
+/* ————————————————— POST-RENDER ENRICHMENT ————————————————— */
+/* After marked.js turns markdown into HTML, walk the DOM inside an entry and
+   color-code blockquotes by proximity to a "Reply N — role:" line. */
+function enrichEntryContent(container) {
+  const bqs = container.querySelectorAll('blockquote');
+  bqs.forEach(bq => {
+    // Look backwards through previous siblings for a role hint
+    let prev = bq.previousElementSibling;
+    let hops = 0;
+    while (prev && hops < 4) {
+      const text = (prev.textContent || '').toLowerCase();
+      if (/\bprofile:\s*hostile|hostile skeptic/i.test(text)) { bq.classList.add('role-hostile'); break; }
+      if (/\bprofile:\s*peer|peer builder/i.test(text)) { bq.classList.add('role-peer'); break; }
+      if (/\bprofile:\s*philosophical|philosopher|emotional commenter/i.test(text)) { bq.classList.add('role-philosopher'); break; }
+      if (/\bprofile:\s*mocker|\bmocker\b/i.test(text)) { bq.classList.add('role-mocker'); break; }
+      if (/\bprofile:\s*silent|silent operator/i.test(text)) { bq.classList.add('role-silent'); break; }
+      if (/\bop reply|op first comment|op action/i.test(text)) { bq.classList.add('role-op'); break; }
+      prev = prev.previousElementSibling;
+      hops++;
+    }
+  });
+}
+
+/* ————————————————— RENDERING ————————————————— */
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderAll() {
+  renderPageMeta();
+  renderChannelFilters();
+  renderSectionNav();
+  renderEntryNav();
+  renderContent();
+  applyFilters();
+}
+
+function renderPageMeta() {
+  const m = state.markdown.match(/Last updated:\s*([\d-]+)/);
+  document.getElementById('last-updated').textContent = m ? m[1] : '—';
+  document.getElementById('entry-count').textContent = state.entries.length;
+}
+
+function renderChannelFilters() {
+  const container = document.getElementById('channel-filters');
+  container.innerHTML = '<span class="chip active" data-filter="channel" data-value="all">All</span>';
+  [...state.channels].sort().forEach(ch => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.dataset.filter = 'channel';
+    chip.dataset.value = ch;
+    chip.textContent = ch;
+    container.appendChild(chip);
+  });
+  bindChips();
+}
+
+function renderSectionNav() {
+  const nav = document.getElementById('section-nav');
+  nav.innerHTML = '';
+  state.sections.forEach(s => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = `#section-${s.num.replace('.','_')}`;
+    a.textContent = `§ ${s.num} — ${s.title}`;
+    li.appendChild(a);
+    nav.appendChild(li);
+  });
+}
+
+function renderEntryNav() {
+  const nav = document.getElementById('entry-nav');
+  nav.innerHTML = '';
+  state.entries.forEach(e => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = `#entry-${CSS.escape(e.id)}`;
+    a.className = 'entry-nav-item';
+    a.innerHTML = `<span class="entry-status ${e.status}"></span>${escapeHtml(e.id)}`;
+    a.dataset.entryId = e.id;
+    li.appendChild(a);
+    nav.appendChild(li);
+  });
+}
+
+function renderContent() {
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+  state.sections.forEach(s => {
+    const sec = document.createElement('section');
+    sec.className = 'section';
+    sec.id = `section-${s.num.replace('.','_')}`;
+    sec.innerHTML = `
+      <h2 class="section-title">
+        <span class="section-number">§ ${s.num}</span>
+        ${escapeHtml(s.title)}
+      </h2>
+    `;
+    if (s.isEntries) {
+      const p = document.createElement('p');
+      p.className = 'section-desc';
+      p.textContent = 'Every deployed comms asset, verbatim. Chronological. Color-coded by responder role.';
+      sec.appendChild(p);
+      state.entries.forEach(e => sec.appendChild(renderEntry(e)));
+    } else {
+      const block = document.createElement('div');
+      block.className = 'content-block';
+      block.innerHTML = marked.parse(s.body);
+      sec.appendChild(block);
+    }
+    content.appendChild(sec);
+  });
+}
+
+function renderEntry(e) {
+  const div = document.createElement('div');
+  div.className = 'entry';
+  div.id = `entry-${e.id}`;
+  div.dataset.id = e.id;
+  div.dataset.status = e.status;
+  div.dataset.channel = e.channel;
+  div.dataset.searchBlob = (e.id + ' ' + e.body + ' ' + e.intent + ' ' + e.channel + ' ' + e.subChannel).toLowerCase();
+
+  const header = `
+    <div class="entry-header">
+      <div>
+        <span class="entry-id">${escapeHtml(e.id)}</span>
+        <span class="entry-status-badge ${e.status}">${escapeHtml(e.statusRaw || e.status)}</span>
+      </div>
+      <div class="entry-meta">
+        <span class="entry-meta-item"><strong>${escapeHtml(e.channel)}</strong>${e.subChannel ? ' · ' + escapeHtml(e.subChannel) : ''}</span>
+        <span class="entry-meta-item">${escapeHtml(e.assetType)}</span>
+        <span class="entry-meta-item">${escapeHtml(e.date)}</span>
+      </div>
+    </div>
+  `;
+
+  // Strip the already-displayed meta lines from body before rendering
+  const cleanedBody = e.body
+    .replace(/^\*\*Date\/Time:\*\*.+$/m, '')
+    .replace(/^\*\*Channel:\*\*.+$/m, '')
+    .replace(/^\*\*Sub-channel:\*\*.+$/m, '')
+    .replace(/^\*\*Asset Type:\*\*.+$/m, '')
+    .replace(/^\*\*Intent:\*\*.+$/m, '')
+    .replace(/^\*\*Status:\*\*.+$/m, '')
+    .trim();
+
+  div.innerHTML = header + `<div class="entry-body">${marked.parse(cleanedBody)}</div>`;
+  enrichEntryContent(div.querySelector('.entry-body'));
+  return div;
+}
+
+/* ————————————————— FILTERING & SEARCH ————————————————— */
+function bindChips() {
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.onclick = () => {
+      const filter = chip.dataset.filter;
+      const value = chip.dataset.value;
+      document.querySelectorAll(`.chip[data-filter="${filter}"]`).forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      state.filters[filter] = value;
+      applyFilters();
+    };
+  });
+}
+
+document.getElementById('search').addEventListener('input', (e) => {
+  state.filters.search = e.target.value.toLowerCase().trim();
+  applyFilters();
+});
+
+function applyFilters() {
+  const entries = document.querySelectorAll('.entry');
+  let visibleCount = 0;
+  entries.forEach(el => {
+    const statusMatch = state.filters.status === 'all' || el.dataset.status === state.filters.status;
+    const channelMatch = state.filters.channel === 'all' || el.dataset.channel === state.filters.channel;
+    const searchMatch = !state.filters.search || el.dataset.searchBlob.includes(state.filters.search);
+    if (statusMatch && channelMatch && searchMatch) {
+      el.classList.remove('hidden');
+      visibleCount++;
+    } else {
+      el.classList.add('hidden');
+    }
+  });
+
+  // Show "no results" if all entries hidden
+  const entriesSection = document.querySelector('#section-3');
+  if (entriesSection) {
+    let msg = entriesSection.querySelector('.no-results');
+    if (visibleCount === 0 && state.entries.length > 0) {
+      if (!msg) {
+        msg = document.createElement('div');
+        msg.className = 'no-results';
+        msg.textContent = 'No entries match current filters';
+        entriesSection.appendChild(msg);
+      }
+    } else if (msg) {
+      msg.remove();
+    }
+  }
+}
+
+/* ————————————————— LOADING ————————————————— */
+document.getElementById('file-input').addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = (ev) => parseMarkdown(ev.target.result);
+  r.readAsText(f);
+});
+
+async function tryAutoLoad() {
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="loading">Loading comms log…</div>';
+  try {
+    const res = await fetch('VoiceLens_Comms_Log.md');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const txt = await res.text();
+    parseMarkdown(txt);
+  } catch (err) {
+    content.innerHTML = `
+      <div class="error">
+        <h3>Auto-load failed</h3>
+        <p>${escapeHtml(err.message)}</p>
+        <p>This usually means you're opening the HTML directly (file://). Browsers block fetch requests from file:// for security.</p>
+        <p><strong>Fix:</strong> serve the folder with a local web server:</p>
+        <code>cd /path/to/folder<br>python3 -m http.server 8000</code>
+        <p>Then open <code>http://localhost:8000/VoiceLens_Comms_Log_Viewer.html</code></p>
+        <p>Or use the <strong>Choose File</strong> button — no server needed.</p>
+        <button class="load-btn" onclick="document.getElementById('file-input').click()">Choose File</button>
+      </div>
+    `;
+  }
+}
+
+/* ————————————————— SCROLL TO TOP ————————————————— */
+const scrollBtn = document.getElementById('scroll-top');
+window.addEventListener('scroll', () => {
+  scrollBtn.classList.toggle('visible', window.scrollY > 400);
+});
+
+/* ————————————————— BOOT ————————————————— */
+// Auto-attempt load on boot (silent fail to manual if it doesn't work)
+window.addEventListener('load', async () => {
+  try {
+    const res = await fetch('VoiceLens_Comms_Log.md');
+    if (res.ok) {
+      const txt = await res.text();
+      parseMarkdown(txt);
+    }
+  } catch {
+    // Stay on the load prompt
+  }
+});
+</script>
+</body>
+</html>
