@@ -1,0 +1,134 @@
+name: Claude Commit (issue-driven)
+
+# Listens for issues labeled `claude-commit`. Parses one or more files
+# from the issue body using a YAML protocol, commits them, then closes
+# the issue with the commit SHA.
+
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  commit:
+    if: contains(github.event.issue.labels.*.name, 'claude-commit')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse issue body and write files
+        id: parse
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -e
+          python3 - <<'PYEOF'
+          import os, re, yaml, sys
+
+          body = os.environ['ISSUE_BODY']
+          issue_number = os.environ['ISSUE_NUMBER']
+
+          m = re.search(r'```yaml\s*\n(.*?)\n```', body, re.DOTALL)
+          if not m:
+              print('::error::No yaml fenced block found in issue body')
+              sys.exit(1)
+
+          spec = yaml.safe_load(m.group(1))
+          if not isinstance(spec, dict) or 'files' not in spec:
+              print('::error::yaml block missing files: list')
+              sys.exit(1)
+
+          message = spec.get('message', f'Commit from issue #{issue_number}')
+          files = spec['files']
+
+          if not isinstance(files, list) or not files:
+              print('::error::files must be a non-empty list')
+              sys.exit(1)
+
+          written = []
+          for f in files:
+              path = f.get('path')
+              content = f.get('content', '')
+              if not path:
+                  print('::error::file entry missing path')
+                  sys.exit(1)
+              if path.startswith('/') or '..' in path.split('/'):
+                  print(f'::error::illegal path: {path}')
+                  sys.exit(1)
+              os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+              with open(path, 'w') as out:
+                  out.write(content)
+              written.append(path)
+              print(f'Wrote {path} ({len(content)} bytes)')
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as gh_out:
+              gh_out.write(f'commit_message<<EOF\n{message}\nEOF\n')
+              gh_out.write(f'files<<EOF\n{chr(10).join(written)}\nEOF\n')
+          PYEOF
+
+      - name: Commit and push
+        id: commit
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --staged --quiet; then
+            echo "::warning::No file changes to commit"
+            echo "sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "${{ steps.parse.outputs.commit_message }}" \
+                     -m "Triggered by issue #${{ github.event.issue.number }}"
+          git push origin HEAD:${{ github.event.repository.default_branch }}
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on issue with result
+        if: steps.commit.outputs.sha != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = '${{ steps.commit.outputs.sha }}';
+            const files = `${{ steps.parse.outputs.files }}`;
+            const msg = `${{ steps.parse.outputs.commit_message }}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                `✅ Committed \`${sha}\``,
+                ``,
+                `**Message:** ${msg}`,
+                ``,
+                `**Files:**`,
+                ...files.split('\n').filter(Boolean).map(f => `- \`${f}\``)
+              ].join('\n')
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed',
+              state_reason: 'completed'
+            });
+
+      - name: Comment on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: '❌ Commit failed. See [workflow run](' + 
+                    `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}` +
+                    ') for details.'
+            });
